@@ -1,15 +1,17 @@
 "use client";
 
-import type { ContainerProps, PageElement } from "@/lib/types";
+import type { ContainerProps, PageElement, SizeUnit } from "@/lib/types";
 import {
   ColorField,
   FieldGroup,
   NumberField,
   PanelSection,
   SelectField,
-} from "@/components/ui/fields";
+  SizeUnitField,
+} from "./propertiesFields";
 import { useProjectStore } from "@/store/projectsStore";
 import SelfAlignmentFields from "./SelfAlignmentFields";
+import TypographyFields from "./TypographyFields";
 
 export default function ContainerProperties({
   element,
@@ -24,6 +26,41 @@ export default function ContainerProperties({
 
   return (
     <>
+      <PanelSection title="Dimensions">
+        <SizeUnitField
+          label="Width"
+          value={props.width ?? 100}
+          unit={props.widthUnit ?? "%"}
+          onValueChange={(width) => set({ width })}
+          onUnitChange={(widthUnit) =>
+            set({ widthUnit: widthUnit as SizeUnit })
+          }
+          units={["%", "px", "auto"]}
+        />
+
+        <SizeUnitField
+          label="Height"
+          value={props.height}
+          unit={props.heightUnit ?? "auto"}
+          onValueChange={(height) => set({ height })}
+          onUnitChange={(heightUnit) =>
+            set({ heightUnit: heightUnit as SizeUnit })
+          }
+          units={["auto", "px", "%"]}
+        />
+
+        <SizeUnitField
+          label="Min Height"
+          value={props.minHeight ?? 80}
+          unit={props.minHeightUnit ?? "px"}
+          onValueChange={(minHeight) => set({ minHeight })}
+          onUnitChange={(minHeightUnit) =>
+            set({ minHeightUnit: minHeightUnit as "px" | "%" })
+          }
+          units={["px", "%"]}
+        />
+      </PanelSection>
+
       <PanelSection title="Layout">
         <SelectField
           label="Mode"
@@ -45,7 +82,7 @@ export default function ContainerProperties({
               onChange={(v) => set({ gridColumns: v })}
             />
             <NumberField
-              label="Gap"
+              label="Gap (px)"
               value={props.gap}
               min={0}
               max={100}
@@ -64,7 +101,7 @@ export default function ContainerProperties({
               ]}
             />
             <NumberField
-              label="Gap"
+              label="Gap (px)"
               value={props.gap}
               min={0}
               max={100}
@@ -111,35 +148,16 @@ export default function ContainerProperties({
             ]}
           />
         </FieldGroup>
-
-        <p className="rounded-md bg-slate-50 px-2.5 py-2 text-xs text-slate-400">
-          {isGrid
-            ? "Justify items positions each child horizontally within its cell; Align items positions it vertically."
-            : `Justify content spaces children along the ${
-                props.direction === "row" ? "horizontal" : "vertical"
-              } axis; Align items controls the ${
-                props.direction === "row" ? "vertical" : "horizontal"
-              } axis.`}
-        </p>
       </PanelSection>
 
-      <PanelSection title="Box">
-        <FieldGroup>
-          <NumberField
-            label="Padding"
-            value={props.padding}
-            min={0}
-            max={120}
-            onChange={(v) => set({ padding: v })}
-          />
-          <NumberField
-            label="Min height"
-            value={props.minHeight}
-            min={0}
-            max={1200}
-            onChange={(v) => set({ minHeight: v })}
-          />
-        </FieldGroup>
+      <PanelSection title="Appearance">
+        <NumberField
+          label="Padding (px)"
+          value={props.padding}
+          min={0}
+          max={120}
+          onChange={(v) => set({ padding: v })}
+        />
         <ColorField
           label="Background"
           value={
@@ -150,6 +168,8 @@ export default function ContainerProperties({
           onChange={(v) => set({ backgroundColor: v })}
         />
       </PanelSection>
+
+      <TypographyFields element={element} allowInheritFont />
 
       <SelfAlignmentFields element={element} />
     </>

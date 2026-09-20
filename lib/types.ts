@@ -6,6 +6,8 @@ export type ElementType =
   | "container"
   | "table";
 
+export type SizeUnit = "px" | "%" | "auto";
+
 export type AlignSelf =
   | "auto"
   | "flex-start"
@@ -19,12 +21,23 @@ export interface SelfLayoutProps {
   justifySelf: JustifySelf;
 }
 
-export interface TextProps extends SelfLayoutProps {
+export type FontWeight = "normal" | "medium" | "semibold" | "bold";
+export type TextAlign = "left" | "center" | "right" | "justify";
+export type TextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
+
+export interface TypographyProps {
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: FontWeight;
+  lineHeight?: number;
+  letterSpacing?: number;
+  textAlign?: TextAlign;
+  textTransform?: TextTransform;
+  color?: string;
+}
+
+export interface TextProps extends SelfLayoutProps, TypographyProps {
   content: string;
-  fontSize: number;
-  fontWeight: "normal" | "medium" | "semibold" | "bold";
-  textAlign: "left" | "center" | "right" | "justify";
-  color: string;
   [key: string]: unknown;
 }
 
@@ -49,7 +62,7 @@ export interface ShapeProps extends SelfLayoutProps {
   [key: string]: unknown;
 }
 
-export interface ButtonProps extends SelfLayoutProps {
+export interface ButtonProps extends SelfLayoutProps, TypographyProps {
   label: string;
   href: string;
   backgroundColor: string;
@@ -61,7 +74,7 @@ export interface ButtonProps extends SelfLayoutProps {
   [key: string]: unknown;
 }
 
-export interface ContainerProps extends SelfLayoutProps {
+export interface ContainerProps extends SelfLayoutProps, TypographyProps {
   layoutMode: "flex" | "grid";
   /** Flex only. */
   direction: "row" | "column";
@@ -76,6 +89,11 @@ export interface ContainerProps extends SelfLayoutProps {
   padding: number;
   backgroundColor: string;
   minHeight: number;
+  minHeightUnit: SizeUnit;
+  width?: number;
+  widthUnit?: SizeUnit;
+  height?: number;
+  heightUnit?: SizeUnit;
   [key: string]: unknown;
 }
 

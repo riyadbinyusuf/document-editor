@@ -7,7 +7,7 @@ import {
   PanelSection,
   SelectField,
   TextField,
-} from "@/components/ui/fields";
+} from "./propertiesFields";
 import SelfAlignmentFields from "./SelfAlignmentFields";
 import { useProjectStore } from "@/store/projectsStore";
 

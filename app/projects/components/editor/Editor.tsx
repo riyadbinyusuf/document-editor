@@ -1,12 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import {
   DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
   type DragEndEvent,
-  type DragStartEvent,
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 
@@ -33,19 +29,15 @@ import {
   Maximize2,
   Plus,
   Save,
+  SquareText,
 } from "lucide-react";
 import ComponentsPanel from "./ComponentsPanel";
 import {
   CanvasItemData,
   DndData,
   DropzoneData,
-  groupToParentId,
 } from "@/lib/dnd-constants";
 import Canvas from "./Canvas";
-
-type ActiveDrag =
-  | { kind: "draggableItem"; elementType: ElementType }
-  | { kind: "canvas"; elementType: ElementType; label: string };
 
 const canvasZoom = [
   { label: "100%", value: "100%" },
@@ -58,9 +50,9 @@ export default function Editor() {
   const elements = useProjectStore((s) => s.selectedPage.elements) ?? [];
   const addElement = useProjectStore((s) => s.addElement);
   const moveElement = useProjectStore((s) => s.moveElement);
-  const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
 
   function handleDragEnd(event: DragEndEvent) {
+    console.log({event})
     if (event.canceled) return;
     const { source, target } = event.operation;
     if (!source) return;
@@ -69,16 +61,44 @@ export default function Editor() {
     // different one. dnd-kit's optimistic sorting has already resolved
     // the final group/index by the time drop happens — we just persist it.
     if (isSortable(source)) {
-      const { initialIndex, index, initialGroup, group } = source;
-      if (initialIndex === index && initialGroup === group) return;
-      moveElement(String(source.id), {
-        parentId: groupToParentId(group),
-        index,
-      });
-      return;
+      if (target && !isSortable(target)) {
+        const targetData = target.data as DropzoneData | undefined;
+        if (targetData?.kind === 'dropzone') {
+          if (String(source.id) === targetData.parentId) return;
+          moveElement(String(source.id), {
+            parentId: targetData.parentId,
+            index: undefined
+          });
+          return;
+        }
+      }
+
+      if (target && isSortable(target)) {
+        if (String(source.id) === String(target.id)) return;
+        const targetElement = findElement(elements, String(target.id));
+        const isTargetContainer = targetElement?.type === "container";
+        const sourceElement = findElement(elements, String(source.id));
+        const isSourceContainer = sourceElement?.type === "container";
+        // placing elemented inside container
+        if (isTargetContainer && !isSourceContainer) {
+          moveElement(String(source.id), {
+            parentId: String(target.id),
+            index: undefined,
+          });
+          return;
+        }
+        const targetData = target.data as CanvasItemData | undefined;
+        const targetParentId = targetData?.parentId ?? null;
+        if (String(source.id) === targetParentId) return;
+        moveElement(String(source.id), {
+          parentId: targetParentId,
+          index: target.index,
+        });
+        return;
+      }
+
     }
 
-    // A brand-new element dragged in from the sidebar.
     const sourceData = source.data as DndData | undefined;
     if (sourceData?.kind === "draggable-item" && target) {
       const targetData = target.data as
@@ -86,8 +106,7 @@ export default function Editor() {
         | DropzoneData
         | undefined;
       const parentId = targetData?.parentId ?? null;
-      // If we're hovering a specific existing element, insert right
-      // before it; otherwise (empty container / root canvas) append.
+
       const index = isSortable(target) ? target.index : undefined;
       addElement(sourceData.elementType, { parentId, index });
     }
@@ -101,7 +120,7 @@ export default function Editor() {
         {/* Canvas & Settings & Saved template */}
         <div className="editor-canvas-area flex flex-col min-h-0 flex-1 space-y-5 h-full">
           {/* Canvas and Settings */}
-          <div className="flex flex-1 h-full items- justify-between space-x-4 min-h-0">
+          <div className="flex flex-1 h-full justify-between space-x-4 min-h-0">
             <div className="px-4 flex flex-col min-h-0 flex-1">
               {/* Zoom, expand actions */}
               <div className="zoom-expand flex items-center justify-end space-x-3 pb-3">
@@ -127,14 +146,13 @@ export default function Editor() {
                 </Button>
               </div>
               {/* Canvas Pages */}
-              <div className="canvas-frame shadow-sm bg-white rounded flex-1">
                 <Canvas />
-              </div>
             </div>
             {/* Settings panel */}
             <div className="editor-right-panel w-[20%] h-full bg-white border border-gray-200 rounded p-3">
-              <h2 className="font-bold text-lg text-black">
-                Properties & Data
+              <h2 className="font-bold text-base text-black flex items-center space-x-2">
+                <span><SquareText /></span>
+                <span>Properties &amp; Data</span>
               </h2>
               <PropertiesPanel />
             </div>
@@ -188,6 +206,21 @@ export default function Editor() {
           </div>
         </div>
       </div>
+      <DragOverlay dropAnimation={null}>
+        {(source) => {
+          const data = source.data as DndData | undefined;
+          const sourceType: ElementType | undefined =
+            data?.kind === "draggable-item"
+              ? data.elementType
+              : findElement(elements, String(source.id))?.type;
+          const label = sourceType ? ELEMENT_REGISTRY[sourceType].label : "";
+          return (
+            <div className="flex items-center gap-2 rounded-md border border-accent-500 bg-white px-3 py-2 text-xs font-medium text-accent-600 shadow-md">
+              {data?.kind === "draggable-item" ? `Add ${label}` : `Moving ${label}`}
+            </div>
+          );
+        }}
+      </DragOverlay>
     </DragDropProvider>
   );
 }

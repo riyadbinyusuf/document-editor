@@ -5,11 +5,6 @@ import { CollisionPriority } from "@dnd-kit/abstract";
 import CanvasNode from "./CanvasNode";
 import { useProjectStore } from "@/store/projectsStore";
 import { DRAGGABLE_TYPE, DropzoneData, SIDEBAR_DRAGGABLE_TYPE } from "@/lib/dnd-constants";
-// import {
-//   DRAGGABLE_TYPE,
-//   SIDEBAR_DRAGGABLE_TYPE,
-//   type DropzoneData,
-// } from "./dnd-constants";
 
 export default function Canvas() {
   const elements = useProjectStore((s) => s.selectedPage.elements) ?? [];
@@ -18,25 +13,21 @@ export default function Canvas() {
   const { ref, isDropTarget } = useDroppable({
     id: "root-dropzone",
     accept: [DRAGGABLE_TYPE, SIDEBAR_DRAGGABLE_TYPE],
-    // Let a specific root item "win" the collision over the root
-    // dropzone itself, so dropping near a sibling inserts next to it
-    // instead of always just appending to the end.
     collisionPriority: CollisionPriority.Low,
     data: { kind: "dropzone", parentId: null } satisfies DropzoneData,
   });
 
   return (
     <div
-      className="thin-scroll flex-1 overflow-y-auto"
+      className="thin-scroll flex-1 overflow-y-auto shadow-sm bg-white rounded min-h-0"
       onClick={() => selectElement(null)}
     >
       <div
-        className="mx-auto max-w-3xl rounded-lg"
-        onClick={(e) => e.stopPropagation()}
+        className="h-full"
       >
         <div
           ref={ref}
-          className={`flex flex-col gap-6 p-10 transition-shadow ${
+          className={`min-h-full flex flex-col gap-6 p-10 transition-shadow ${
             isDropTarget ? "shadow-[inset_0_0_0_2px_#4C5BD4]" : ""
           }`}
         >

@@ -1,7 +1,7 @@
 "use client";
 
 import type { AlignSelf, JustifySelf, PageElement } from "@/lib/types";
-import { PanelSection, SelectField } from "@/components/ui/fields";
+import { PanelSection, SelectField } from "./propertiesFields";
 import { useProjectStore } from "@/store/projectsStore";
 
 export default function SelfAlignmentFields({
@@ -18,7 +18,7 @@ export default function SelfAlignmentFields({
   return (
     <PanelSection title="Position in container">
       <p className="rounded-md bg-slate-50 px-2.5 py-2 text-xs text-slate-400">
-        Overrides the parent's alignment for this one element only.
+        Overrides the parent&apos;s alignment for this one element only.
       </p>
       <SelectField
         label="Align self"

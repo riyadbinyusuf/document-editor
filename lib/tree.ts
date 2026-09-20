@@ -37,6 +37,18 @@ export function findContainingList(
   return null;
 }
 
+export function findParentContainer(
+  tree: PageElement[],
+  id: string,
+): PageElement | null {
+  const info = findContainingList(tree, id);
+  if (!info || !info.parentId) return null;
+  const parent = findElement(tree, info.parentId);
+  if (!parent) return null;
+  if (parent.type === "container") return parent;
+  return findParentContainer(tree, parent.id);
+}
+
 
 export function getListForParent(
   tree: PageElement[],
@@ -87,20 +99,21 @@ export function removeElement(
 export function insertElement(
   tree: PageElement[],
   parentId: string | null,
-  index: number,
+  index: number | undefined | null,
   element: PageElement,
 ): PageElement[] {
   if (parentId === null) {
     const next = [...tree];
-    next.splice(clamp(index, 0, next.length), 0, element);
+    const targetIdx = index != null && !Number.isNaN(index) ? index : next.length;
+    next.splice(clamp(targetIdx, 0, next.length), 0, element);
     return next;
   }
-
   function recurse(list: PageElement[]): PageElement[] {
     return list.map((el) => {
       if (el.id === parentId) {
         const children = el.children ? [...el.children] : [];
-        children.splice(clamp(index, 0, children.length), 0, element);
+        const targetIdx = index != null && !Number.isNaN(index) ? index : children.length;
+        children.splice(clamp(targetIdx, 0, children.length), 0, element);
         return { ...el, children };
       }
       if (el.children) {
@@ -109,7 +122,6 @@ export function insertElement(
       return el;
     });
   }
-
   return recurse(tree);
 }
 
