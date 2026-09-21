@@ -1,12 +1,15 @@
 ## Getting Started
 
-run the development server by folloing step:
+Run the development server by folloing steps:
 
 ### Step-1: clone the project from github: 
 
 ```
-git clone 
+git clone https://github.com/riyadbinyusuf/document-editor.git
 ```
+
+or download the project from this link https://github.com/riyadbinyusuf/document-editor/archive/refs/heads/main.zip 
+
 ### Step-2 Navigate to project folder and open in code editor or terminal, run the given command
 ```
 npm install
