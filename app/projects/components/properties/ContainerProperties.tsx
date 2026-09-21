@@ -1,6 +1,6 @@
 "use client";
 
-import type { ContainerProps, PageElement, SizeUnit } from "@/lib/types";
+import type { ContainerProps, PageElement, SizeUnit, TypographyProps } from "@/lib/types";
 import {
   ColorField,
   FieldGroup,
@@ -15,12 +15,14 @@ import TypographyFields from "./TypographyFields";
 
 export default function ContainerProperties({
   element,
+  containerProps
 }: {
   element: PageElement;
+  containerProps?: TypographyProps
 }) {
   const props = element.props as unknown as ContainerProps;
   const isGrid = props.layoutMode === "grid";
-  const updateElementProps = useProjectStore((s) => s.updateElementProps);
+  const updateElementProps = useProjectStore((s) => s.actions.updateElementProps);
   const set = (patch: Partial<ContainerProps>) =>
     updateElementProps(element.id, patch);
 
@@ -169,7 +171,7 @@ export default function ContainerProperties({
         />
       </PanelSection>
 
-      <TypographyFields element={element} allowInheritFont />
+      <TypographyFields element={element} containerProps={containerProps} allowInheritFont />
 
       <SelfAlignmentFields element={element} />
     </>

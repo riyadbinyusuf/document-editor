@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonProps, PageElement } from "@/lib/types";
+import type { ButtonProps, PageElement, TypographyProps } from "@/lib/types";
 import {
   ColorField,
   FieldGroup,
@@ -12,9 +12,9 @@ import SelfAlignmentFields from "./SelfAlignmentFields";
 import TypographyFields from "./TypographyFields";
 import { useProjectStore } from "@/store/projectsStore";
 
-export default function ButtonProperties({ element }: { element: PageElement }) {
+export default function ButtonProperties({ element, containerProps }: { element: PageElement, containerProps?: TypographyProps }) {
   const props = element.props as unknown as ButtonProps;
-  const updateElementProps = useProjectStore((s) => s.updateElementProps);
+  const updateElementProps = useProjectStore((s) => s.actions.updateElementProps);
   const set = (patch: Partial<ButtonProps>) =>
     updateElementProps(element.id, patch);
 
@@ -66,7 +66,7 @@ export default function ButtonProperties({ element }: { element: PageElement }) 
           />
         </FieldGroup>
       </PanelSection>
-      <TypographyFields element={element} colorKey="textColor" hideAlignment />
+      <TypographyFields element={element} containerProps={containerProps} colorKey="textColor" hideAlignment />
       <SelfAlignmentFields element={element} />
     </>
   );

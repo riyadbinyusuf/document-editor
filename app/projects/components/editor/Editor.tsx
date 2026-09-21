@@ -10,7 +10,7 @@ import { findElement } from "@/lib/tree";
 import type { ElementType } from "@/lib/types";
 import PropertiesPanel from "./PropertiesPanel";
 import { DragDropProvider } from "@dnd-kit/react";
-import { useProjectStore } from "@/store/projectsStore";
+import { selectActiveElements, useProjectStore } from "@/store/projectsStore";
 import { ELEMENT_REGISTRY } from "@/lib/elementsRegistry";
 import {
   Select,
@@ -23,12 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import {
-  EllipsisVertical,
-  File,
-  FolderOpen,
   Maximize2,
-  Plus,
-  Save,
   SquareText,
 } from "lucide-react";
 import ComponentsPanel from "./ComponentsPanel";
@@ -38,6 +33,8 @@ import {
   DropzoneData,
 } from "@/lib/dnd-constants";
 import Canvas from "./Canvas";
+import SaveTemplate from "./SaveTemplate";
+import React from "react";
 
 const canvasZoom = [
   { label: "100%", value: "100%" },
@@ -46,68 +43,161 @@ const canvasZoom = [
   { label: "50%", value: "50%" },
 ];
 
-export default function Editor() {
-  const elements = useProjectStore((s) => s.selectedPage.elements) ?? [];
-  const addElement = useProjectStore((s) => s.addElement);
-  const moveElement = useProjectStore((s) => s.moveElement);
+function Editor() {
+  const addElement = useProjectStore((s) => s.actions.addElement);
+  const moveElement = useProjectStore((s) => s.actions.moveElement);
+
+  // detects whether to insert before or after target
+  function getInsertionIndex(
+    target: DragEndEvent["operation"]["target"],
+    pointerPos?: { x: number; y: number } | null
+  ): number | undefined {
+    if (!isSortable(target) || target.index === undefined) return undefined;
+    if (!pointerPos || !target.element) return target.index;
+
+    const rect = target.element.getBoundingClientRect();
+    // Use X for wide/horizontal items, Y for vertical column items
+    const isHorizontal = rect.width > rect.height * 1.5;
+    const isAfter = isHorizontal
+      ? pointerPos.x > rect.left + rect.width / 2
+      : pointerPos.y > rect.top + rect.height / 2;
+
+    return isAfter ? target.index + 1 : target.index;
+  }
 
   function handleDragEnd(event: DragEndEvent) {
-    console.log({event})
     if (event.canceled) return;
     const { source, target } = event.operation;
-    if (!source) return;
+    if (!source || !target) return;
 
-    // Existing canvas element: reordered within a list, or moved to a
-    // different one. dnd-kit's optimistic sorting has already resolved
-    // the final group/index by the time drop happens — we just persist it.
+    const elements = selectActiveElements(useProjectStore.getState());
+    const pointer = event.operation.position.current;
+
+    // Reordering
     if (isSortable(source)) {
-      if (target && !isSortable(target)) {
+      // 1. Drop to root canvas or empty container dropzone
+      if (!isSortable(target)) {
         const targetData = target.data as DropzoneData | undefined;
-        if (targetData?.kind === 'dropzone') {
+        if (targetData?.kind === "dropzone") {
           if (String(source.id) === targetData.parentId) return;
           moveElement(String(source.id), {
             parentId: targetData.parentId,
-            index: undefined
-          });
-          return;
-        }
-      }
-
-      if (target && isSortable(target)) {
-        if (String(source.id) === String(target.id)) return;
-        const targetElement = findElement(elements, String(target.id));
-        const isTargetContainer = targetElement?.type === "container";
-        const sourceElement = findElement(elements, String(source.id));
-        const isSourceContainer = sourceElement?.type === "container";
-        // placing elemented inside container
-        if (isTargetContainer && !isSourceContainer) {
-          moveElement(String(source.id), {
-            parentId: String(target.id),
             index: undefined,
           });
           return;
         }
+      }
+
+      // 2. Drop to sortable target (element or container)
+      if (isSortable(target)) {
+        if (String(source.id) === String(target.id)) return;
+        const targetElement = findElement(elements, String(target.id));
+        const isTargetContainer = targetElement?.type === "container";
+
+        // A. if dropping to empty container
+        if (isTargetContainer && (!targetElement.children || targetElement.children.length === 0)) {
+          moveElement(String(source.id), {
+            parentId: targetElement.id,
+            index: undefined,
+          });
+          return;
+        }
+
+        // B. if dropping to non-empty container
+        if (isTargetContainer && target.element) {
+          const rect = target.element.getBoundingClientRect();
+          const pointerY = pointer?.y ?? rect.top;
+          const edgeThreshold = Math.min(12, Math.max(4, rect.height * 0.15)); // 24px edge hitbox
+
+          // Top -> move to sibling BEFORE
+          if (pointerY < rect.top + edgeThreshold) {
+            const targetData = target.data as CanvasItemData | undefined;
+            moveElement(String(source.id), {
+              parentId: targetData?.parentId ?? null,
+              index: target.index,
+            });
+            return;
+          }
+          // Bottom -> move to sibling AFTER
+          if (pointerY > rect.bottom - edgeThreshold) {
+            const targetData = target.data as CanvasItemData | undefined;
+            moveElement(String(source.id), {
+              parentId: targetData?.parentId ?? null,
+              index: target.index + 1,
+            });
+            return;
+          }
+          // Interior -> drop INSIDE container
+          moveElement(String(source.id), {
+            parentId: targetElement.id,
+            index: undefined,
+          });
+          return;
+        }
+
+        // C. General element sorting (top 50% = before, bottom 50% = after)
         const targetData = target.data as CanvasItemData | undefined;
         const targetParentId = targetData?.parentId ?? null;
         if (String(source.id) === targetParentId) return;
+
+        const insertIndex = getInsertionIndex(target, pointer);
         moveElement(String(source.id), {
           parentId: targetParentId,
-          index: target.index,
+          index: insertIndex,
+        });
+        return;
+      }
+    }
+
+    // Add new element to the tree
+    const sourceData = source.data as DndData | undefined;
+    if (sourceData?.kind === "draggable-item") {
+      const targetElement = isSortable(target) ? findElement(elements, String(target.id)) : null;
+      const isTargetContainer = targetElement?.type === "container";
+
+      // 1. if dropping to empty container
+      if (isTargetContainer && (!targetElement.children || targetElement.children.length === 0)) {
+        addElement(sourceData.elementType, { parentId: targetElement.id, index: undefined });
+        return;
+      }
+
+      // 2. if dropping to non-empty container
+      if (isTargetContainer && isSortable(target) && target.element) {
+        const rect = target.element.getBoundingClientRect();
+        const pointerY = pointer?.y ?? rect.top;
+        const edgeThreshold = 24;
+
+        // Top -> add BEFORE container
+        if (pointerY < rect.top + edgeThreshold) {
+          const targetData = target.data as CanvasItemData | undefined;
+          addElement(sourceData.elementType, {
+            parentId: targetData?.parentId ?? null,
+            index: target.index,
+          });
+          return;
+        }
+        // Bottom  -> add AFTER container
+        if (pointerY > rect.bottom - edgeThreshold) {
+          const targetData = target.data as CanvasItemData | undefined;
+          addElement(sourceData.elementType, {
+            parentId: targetData?.parentId ?? null,
+            index: target.index + 1,
+          });
+          return;
+        }
+        // Interior -> add INSIDE container
+        addElement(sourceData.elementType, {
+          parentId: targetElement.id,
+          index: undefined,
         });
         return;
       }
 
-    }
-
-    const sourceData = source.data as DndData | undefined;
-    if (sourceData?.kind === "draggable-item" && target) {
-      const targetData = target.data as
-        | CanvasItemData
-        | DropzoneData
-        | undefined;
+      // 3. Dropping onto explicit dropzone or regular element
+      const targetData = target.data as CanvasItemData | DropzoneData | undefined;
       const parentId = targetData?.parentId ?? null;
+      const index = getInsertionIndex(target, pointer);
 
-      const index = isSortable(target) ? target.index : undefined;
       addElement(sourceData.elementType, { parentId, index });
     }
   }
@@ -159,56 +249,13 @@ export default function Editor() {
           </div>
 
           {/* Save templates */}
-          <div className="ml-4 p-4 border rounded min-h-0 overflow-auto space-y-3">
-            <div className="heading flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="">
-                  {" "}
-                  <FolderOpen className="text-primary" />{" "}
-                </div>
-                <div className="">
-                  <h2 className="text-base font-medium">Save Templates</h2>
-                  <p className="text-sm font-light text-gray-500">
-                    Access and manage your saved templates
-                  </p>
-                </div>
-              </div>
-              <Button variant="outline_primay">
-                {" "}
-                <Plus /> Save current as Template{" "}
-              </Button>
-            </div>
-            <div className="save-template-list space-y-2">
-              <div className="st-card bg-white rounded px-3 py-2 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="">
-                    {" "}
-                    <Save className="text-primary" />{" "}
-                  </div>
-                  <div className="">
-                    <h3 className="text-sm">Template 1</h3>
-                    <p className="text-xs font-light text-gray-500">
-                      Saved on 2026-09-14 | 10:32 AM
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Button variant="outline_primay">
-                    {" "}
-                    <File /> Open
-                  </Button>
-                  <Button variant="outline">
-                    <EllipsisVertical />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <SaveTemplate />
         </div>
       </div>
       <DragOverlay dropAnimation={null}>
         {(source) => {
           const data = source.data as DndData | undefined;
+          const elements = selectActiveElements(useProjectStore.getState());
           const sourceType: ElementType | undefined =
             data?.kind === "draggable-item"
               ? data.elementType
@@ -224,3 +271,5 @@ export default function Editor() {
     </DragDropProvider>
   );
 }
+
+export default React.memo(Editor);

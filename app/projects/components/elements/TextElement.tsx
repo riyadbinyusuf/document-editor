@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef } from "react";
-import type { PageElement, TextProps, TypographyProps } from "@/lib/types";
+import { useEffect, useRef } from "react";
+import type { PageElement, TextProps } from "@/lib/types";
 import { useProjectStore } from "@/store/projectsStore";
-import { findParentContainer } from "@/lib/tree";
+import { useContainerTypography } from "./ContainerTypographyContext";
 
 export default function TextElement({
   element,
@@ -12,13 +12,12 @@ export default function TextElement({
   element: PageElement;
   selected: boolean;
 }) {
-  const elements = useProjectStore((s) => s.selectedPage.elements) ?? [];
-  const parentContainer = findParentContainer(elements, element.id);
-  const containerProps = parentContainer?.props as TypographyProps | undefined;
+  const { isInsideContainer, typography: containerProps } = useContainerTypography();
 
   const props = element.props as unknown as TextProps;
-  const updateElementProps = useProjectStore((s) => s.updateElementProps);
+  const updateElementProps = useProjectStore((s) => s.actions.updateElementProps);
   const ref = useRef<HTMLDivElement>(null);
+  const isEditingRef = useRef(false);
 
   const resolvedFontFamily =
     props.fontFamily && props.fontFamily !== "inherit"
@@ -32,7 +31,7 @@ export default function TextElement({
       ? props.fontSize
       : containerProps?.fontSize != null
         ? containerProps.fontSize
-        : (parentContainer ? undefined : 16);
+        : (isInsideContainer ? undefined : 16);
 
   const resolvedFontWeight =
     props.fontWeight
@@ -74,17 +73,26 @@ export default function TextElement({
       ? props.color
       : containerProps?.color
         ? containerProps.color
-        : (parentContainer ? undefined : "#1e293b");
+        : (isInsideContainer ? undefined : "#1e293b");
+
+  useEffect(() => {
+    if (ref.current && !isEditingRef.current) {
+      if (ref.current.textContent !== (props.content ?? "")) {
+        ref.current.textContent = props.content ?? "";
+      }
+    }
+  }, [props.content]);
 
   return (
     <div
       ref={ref}
       contentEditable={selected}
-      suppressContentEditableWarning
       onPointerDown={(e) => {
         if (selected) e.stopPropagation();
       }}
+      onFocus={() => { isEditingRef.current = true; }}
       onBlur={(e) => {
+        isEditingRef.current = false;
         const content = e.currentTarget.textContent ?? "";
         if (content !== props.content) {
           updateElementProps(element.id, { content });
@@ -111,8 +119,8 @@ export default function TextElement({
         whiteSpace: "pre-wrap",
         wordBreak: "break-word",
       }}
-    >
-      {props.content}
-    </div>
+    />
+    //   {props.content}
+    // </div>
   );
 }

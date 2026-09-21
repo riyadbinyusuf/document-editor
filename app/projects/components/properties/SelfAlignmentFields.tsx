@@ -13,7 +13,7 @@ export default function SelfAlignmentFields({
     alignSelf?: AlignSelf;
     justifySelf?: JustifySelf;
   };
-  const updateElementProps = useProjectStore((s) => s.updateElementProps);
+  const updateElementProps = useProjectStore((s) => s.actions.updateElementProps);
 
   return (
     <PanelSection title="Position in container">

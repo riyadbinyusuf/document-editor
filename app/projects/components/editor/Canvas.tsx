@@ -3,22 +3,24 @@
 import { useDroppable } from "@dnd-kit/react";
 import { CollisionPriority } from "@dnd-kit/abstract";
 import CanvasNode from "./CanvasNode";
-import { useProjectStore } from "@/store/projectsStore";
+import { selectActiveElements, useProjectStore } from "@/store/projectsStore";
 import { DRAGGABLE_TYPE, DropzoneData, SIDEBAR_DRAGGABLE_TYPE } from "@/lib/dnd-constants";
 
 export default function Canvas() {
-  const elements = useProjectStore((s) => s.selectedPage.elements) ?? [];
-  const selectElement = useProjectStore((s) => s.selectElement);
+  const elements = useProjectStore(selectActiveElements);
+  const selectElement = useProjectStore((s) => s.actions.selectElement);
+  const selectedTabId = useProjectStore((s) => s.context.selectedTabId);
 
   const { ref, isDropTarget } = useDroppable({
     id: "root-dropzone",
     accept: [DRAGGABLE_TYPE, SIDEBAR_DRAGGABLE_TYPE],
-    collisionPriority: CollisionPriority.Low,
+    collisionPriority: CollisionPriority.Lowest,
     data: { kind: "dropzone", parentId: null } satisfies DropzoneData,
   });
 
   return (
     <div
+      key={selectedTabId}
       className="thin-scroll flex-1 overflow-y-auto shadow-sm bg-white rounded min-h-0"
       onClick={() => selectElement(null)}
     >

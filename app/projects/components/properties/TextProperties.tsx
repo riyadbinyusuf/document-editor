@@ -1,10 +1,10 @@
 "use client";
 
-import type { PageElement } from "@/lib/types";
+import type { PageElement, TypographyProps } from "@/lib/types";
 import SelfAlignmentFields from "./SelfAlignmentFields";
 import TypographyFields from "./TypographyFields";
 
-export default function TextProperties({ element }: { element: PageElement }) {
+export default function TextProperties({ element, containerProps }: { element: PageElement, containerProps?: TypographyProps }) {
 
   return (
     <>
@@ -13,7 +13,7 @@ export default function TextProperties({ element }: { element: PageElement }) {
           Tip: select the text, then click it again to edit the content directly on the canvas.
         </p>
       </div>
-      <TypographyFields element={element} />
+      <TypographyFields element={element} containerProps={containerProps} />
       <SelfAlignmentFields element={element} />
     </>
   );

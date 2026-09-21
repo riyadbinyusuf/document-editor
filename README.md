@@ -1,8 +1,17 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
 ## Getting Started
 
-First, run the development server:
+run the development server by folloing step:
+
+### Step-1: clone the project from github: 
+
+```
+git clone 
+```
+### Step-2 Navigate to project folder and open in code editor or terminal, run the given command
+```
+npm install
+```
+### Step-3: Run the below command to run the app in locally
 
 ```bash
 npm run dev
@@ -16,21 +25,27 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Completed Features
 
-## Learn More
+- [x] Drag-and-drop canvas with `@dnd-kit/react` reordering and nested dropping (Not stable yet, there's lot of space to improve and fix issues)
+- [x] Flexbox/Grid layout settings
+- [x] Action toolbar for quick action like duplicate, delete, move element
+- [x] Core elements: Text, Container, Button, Image,
+- [x] Tab add and remove
+- [x] Undo and Redo with Zustand and it's zundo middleware
+- [x] Save templates to local storage via Zustand `persist`
+- [x] Template manager drawer to load saved templates
+- [x] Auto-load latest saved template on page reload or reopen
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Remaining Features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Table element (rows, columns, cell editing, borders)
+- [ ] Shape element
+- [ ] Quick components
+- [ ] Page management
+- [ ] Save document to PDF / Print stylesheet
+- [ ] Preview feature

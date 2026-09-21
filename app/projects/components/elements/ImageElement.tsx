@@ -13,14 +13,14 @@ export default function ImageElement({
   selected: boolean;
 }) {
   const props = element.props as unknown as ImageProps;
-  const updateElementProps = useProjectStore((s) => s.updateElementProps);
+  const updateElementProps = useProjectStore((s) => s.actions.updateElementProps);
   const [broken, setBroken] = useState(false);
   const [editingUrl, setEditingUrl] = useState(false);
 
   return (
     <div
       className="relative"
-      style={{ width: `${props.width}%` }}
+      style={{ width: props.width != null ? `${props.width}%` : "100%" }}
       onPointerDown={(e) => {
         if (editingUrl) e.stopPropagation();
       }}

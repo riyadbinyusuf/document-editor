@@ -1,6 +1,6 @@
 "use client";
 
-import type { FontWeight, PageElement, TextAlign, TextTransform, TypographyProps } from "@/lib/types";
+import type { FontWeight, PageElement, TextTransform, TypographyProps } from "@/lib/types";
 import {
   ColorField,
   FieldGroup,
@@ -10,7 +10,6 @@ import {
   TextAlignField,
 } from "./propertiesFields";
 import { useProjectStore } from "@/store/projectsStore";
-import { findParentContainer } from "@/lib/tree";
 
 interface TypographyFieldsProps {
   element: PageElement;
@@ -18,6 +17,7 @@ interface TypographyFieldsProps {
   title?: string;
   hideAlignment?: boolean;
   allowInheritFont?: boolean;
+  containerProps?: TypographyProps;
 }
 
 const FONT_FAMILIES = [
@@ -36,18 +36,15 @@ export default function TypographyFields({
   title = "Typography",
   hideAlignment = false,
   allowInheritFont = false,
+  containerProps,
 }: TypographyFieldsProps) {
-  const elements = useProjectStore((s) => s.selectedPage.elements) ?? [];
-  const parentContainer = findParentContainer(elements, element.id);
-  const containerProps = parentContainer?.props as TypographyProps | undefined;
-
   const props = element.props as unknown as TypographyProps & { textColor?: string };
-  const updateElementProps = useProjectStore((s) => s.updateElementProps);
+  const updateElementProps = useProjectStore((s) => s.actions.updateElementProps);
 
   const set = (patch: Record<string, unknown>) =>
     updateElementProps(element.id, patch);
 
-  const isChildOfContainer = !!parentContainer;
+  const isChildOfContainer = !!containerProps;
 
   const hasChildTypographyOverride =
     isChildOfContainer &&
@@ -115,7 +112,6 @@ export default function TypographyFields({
         { value: "capitalize", label: "Capitalize" },
       ];
 
-  // Resolved active color for display
   const currentColor =
     colorKey === "textColor"
       ? props.textColor ?? containerProps?.color ?? "#ffffff"

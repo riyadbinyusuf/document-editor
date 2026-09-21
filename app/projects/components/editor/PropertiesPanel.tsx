@@ -1,19 +1,23 @@
 "use client";
 
 import { MousePointerClick, SlidersHorizontal } from "lucide-react";
-import { findElement } from "@/lib/tree";
+import { findElement, findParentContainer } from "@/lib/tree";
 import { ReactElement } from "react";
 import TextProperties from "@/app/projects/components/properties/TextProperties";
 import ImageProperties from "@/app/projects/components/properties/ImageProperties";
 import ButtonProperties from "@/app/projects/components/properties/ButtonProperties";
 import ContainerProperties from "@/app/projects/components/properties/ContainerProperties";
-import { useProjectStore } from "@/store/projectsStore";
+import { selectActiveElements, useProjectStore } from "@/store/projectsStore";
 import { ELEMENT_REGISTRY } from "@/lib/elementsRegistry";
+import { TypographyProps } from "@/lib/types";
 
 export default function PropertiesPanel() {
-  const elements = useProjectStore((s) => s.selectedPage.elements) ?? [];
-  const selectedId = useProjectStore((s) => s.selectedElmId);
+  const elements = useProjectStore(selectActiveElements);
+  const selectedId = useProjectStore((s) => s.context.selectedElmId);
   const selected = selectedId ? findElement(elements, selectedId) : null;
+
+  const parentContainer = selected ? findParentContainer(elements, selected.id) : null;
+  const containerProps = parentContainer?.props as TypographyProps | undefined;
 
   const def = selected ? ELEMENT_REGISTRY[selected.type] : null;
   const Icon = def?.icon ?? SlidersHorizontal;
@@ -38,7 +42,7 @@ export default function PropertiesPanel() {
       </div>
 
       {selected ? (
-        <PropertiesFor element={selected} />
+        <PropertiesFor element={selected} containerProps={containerProps} />
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 py-16 text-center text-slate-400">
           <MousePointerClick size={22} strokeWidth={1.5} />
@@ -51,14 +55,13 @@ export default function PropertiesPanel() {
   );
 }
 
-function PropertiesFor({ element }: { element: NonNullable<ReturnType<typeof findElement>> }) {
-  const settingsFor: Record<string, ReactElement> = {
-    text: <TextProperties element={element} />,
-    image: <ImageProperties element={element} />,
-    button: <ButtonProperties element={element} />,
-    container: <ContainerProperties element={element} />
+function PropertiesFor({ element, containerProps }: { element: NonNullable<ReturnType<typeof findElement>>, containerProps?: TypographyProps; }) {
+  switch (element.type) {
+    case "text": return <TextProperties element={element} containerProps={containerProps} />;
+    case "image": return <ImageProperties element={element} />;
+    case "button": return <ButtonProperties element={element} containerProps={containerProps} />;
+    case "container": return <ContainerProperties element={element} containerProps={containerProps} />;
+    default: return null;
   }
-
-  return settingsFor[element.type] ?? null;
 }
 

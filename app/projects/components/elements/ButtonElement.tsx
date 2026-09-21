@@ -1,8 +1,8 @@
 "use client";
 
-import type { ButtonProps, PageElement, TypographyProps } from "@/lib/types";
+import type { ButtonProps, PageElement } from "@/lib/types";
 import { useProjectStore } from "@/store/projectsStore";
-import { findParentContainer } from "@/lib/tree";
+import { useContainerTypography } from "./ContainerTypographyContext";
 
 export default function ButtonElement({
   element,
@@ -11,12 +11,12 @@ export default function ButtonElement({
   element: PageElement;
   selected: boolean;
 }) {
-  const elements = useProjectStore((s) => s.selectedPage.elements) ?? [];
-  const parentContainer = findParentContainer(elements, element.id);
-  const containerProps = parentContainer?.props as TypographyProps | undefined;
+
+  const { isInsideContainer, typography: containerProps } = useContainerTypography();
+
 
   const props = element.props as unknown as ButtonProps;
-  const updateElementProps = useProjectStore((s) => s.updateElementProps);
+  const updateElementProps = useProjectStore((s) => s.actions.updateElementProps);
 
   const resolvedFontFamily =
     props.fontFamily && props.fontFamily !== "inherit"
@@ -30,7 +30,7 @@ export default function ButtonElement({
       ? props.fontSize
       : containerProps?.fontSize != null
         ? containerProps.fontSize
-        : 14;
+        : (isInsideContainer ? undefined : 14);
 
   const resolvedFontWeight =
     props.fontWeight

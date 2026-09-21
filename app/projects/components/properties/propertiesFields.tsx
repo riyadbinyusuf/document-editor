@@ -64,7 +64,7 @@ export function NumberField({
   step = 1,
 }: {
   label: string;
-  value: number;
+  value?: number;
   onChange: (v: number) => void;
   min?: number;
   max?: number;
@@ -74,11 +74,19 @@ export function NumberField({
     <FieldRow label={label}>
       <Input
         type="number"
-        value={Number.isFinite(value) ? value : 0}
+        value={value ?? ""}
         min={min}
         max={max}
         step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => {
+          const val = e.target.value;
+          if (val === "") {
+            onChange(min ?? 0);
+          } else {
+            const num = Number(val);
+            if (!Number.isNaN(num)) onChange(num);
+          }
+        }}
       />
     </FieldRow>
   );

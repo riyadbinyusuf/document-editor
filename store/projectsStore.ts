@@ -7,265 +7,444 @@ import {
   updateElement,
   findElement,
   isSameOrDescendant,
+  getListForParent,
+  findContainingList,
+  MoveDirection,
+  getMovementTarget,
 } from "@/lib/tree";
 import {
   DropTarget,
   ElementType,
   PageElement,
+  ProjectStoreContext,
   ProjectTab,
+  ProjectTemplate,
   TabPage,
 } from "@/lib/types";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { temporal } from "zundo";
+import { defaultTemplate } from "@/lib/constants";
 
 type ProjectStoreState = {
-  id: string;
-  name: string;
-  tabs: ProjectTab[];
-  selectedTab: ProjectTab;
-  selectedPage: TabPage;
-  selectedElmId: string | null;
+  context: ProjectStoreContext;
 };
 
 type ProjectStoreActions = {
-  selectTab: (tab: ProjectTab) => void;
-  addTab: () => void;
-  removeTab: (tabId: string) => void;
-  selectPage: (page: TabPage) => void;
-  addPage: () => void;
-  removePage: (pageId: string) => void;
-  selectElement: (id: string | null) => void;
-  addElement: (type: ElementType, target: DropTarget) => void;
-  updateElementProps: (id: string, props: Record<string, unknown>) => void;
-  removeElementById: (id: string) => void;
-  duplicateElementById: (id: string) => void;
-  moveElement: (activeId: string, target: DropTarget) => void;
+  actions: {
+    selectTab: (tab: ProjectTab | string) => void;
+    addTab: () => void;
+    removeTab: (tabId: string) => void;
+    selectPage: (page: TabPage | string) => void;
+    addPage: () => void;
+    removePage: (pageId: string) => void;
+    selectElement: (id: string | null) => void;
+    addElement: (type: ElementType, target: DropTarget) => void;
+    updateElementProps: (id: string, props: Record<string, unknown>) => void;
+    removeElementById: (id: string) => void;
+    duplicateElementById: (id: string) => void;
+    moveElement: (activeId: string, target: DropTarget) => void;
+    moveElementDirection: (id: string, direction: MoveDirection) => void;
+    saveStore: () => void;
+    loadStore: () => void;
+    loadTemplate: (template: ProjectTemplate) => void;
+  };
 };
 
-type ProjectStore = ProjectStoreState & ProjectStoreActions;
+export type ProjectStore = ProjectStoreState & ProjectStoreActions;
 
-const initialProjectId = generateId("project");
-const initialTabId = generateId("template-1");
-const initialPageId = generateId("page-1");
-const initialTabs = [
-  {
-    id: initialTabId,
-    name: "New Template",
-    projectId: initialProjectId,
-    pages: [
-      { name: "page", id: initialPageId, tabId: initialTabId, elements: [] },
-    ],
-  },
-];
+export const selectActiveTab = (state: ProjectStore): ProjectTab => {
+  const { tabs, selectedTabId } = state.context;
+  return tabs.find((t) => t.id === selectedTabId) ?? tabs[0];
+};
+
+export const selectActivePage = (state: ProjectStore): TabPage => {
+  const tab = selectActiveTab(state);
+  return (
+    tab?.pages.find((p) => p.id === state.context.selectedPageId) ??
+    tab?.pages[0]
+  );
+};
+
+export const selectActiveElements = (state: ProjectStore): PageElement[] => {
+  return selectActivePage(state)?.elements ?? [];
+};
+
+const STORAGE_KEY = "project-store";
 
 export const useProjectStore = create<ProjectStore>()(
-  persist(
+  temporal(
     (set, get) => ({
-      id: initialProjectId,
-      name: "Document Project V1",
-      tabs: initialTabs,
-      selectedTab: initialTabs[0],
-      selectedPage: initialTabs[0].pages[0],
-      selectedElmId: null,
+      context: defaultTemplate,
 
-      selectTab: (tab) =>
-        set({
-          selectedTab: tab,
-          selectedPage: tab.pages[0],
-          selectedElmId: null,
-        }),
-      addTab: () => {
-        const { tabs, id } = get();
-        const newTabId = generateId();
-        const newPageId = generateId();
-        const newTab: ProjectTab = {
-          id: newTabId,
-          name: `Template ${tabs.length + 1}`,
-          projectId: id,
-          pages: [
-            { name: "page", id: newPageId, tabId: newTabId, elements: [] },
-          ],
-        };
-        set({
-          tabs: [...tabs, newTab],
-          selectedTab: newTab,
-          selectedPage: newTab.pages[0],
-          selectedElmId: null,
-        });
-      },
-      removeTab: (tabId) => {
-        const { tabs, selectedTab } = get();
-        if (tabs.length <= 1) return;
-        const remainingTabs = tabs.filter((t) => t.id !== tabId);
-        const nextSelected =
-          selectedTab.id === tabId ? remainingTabs[0] : selectedTab;
-        set({
-          tabs: remainingTabs,
-          selectedTab: nextSelected,
-          selectedPage: nextSelected.pages[0],
-          selectedElmId: null,
-        });
-      },
-      selectPage: (page) => set({ selectedPage: page, selectedElmId: null }),
-      addPage: () => {
-        const { tabs, selectedTab } = get();
-        const newPageId = generateId();
-        const newPage: TabPage = {
-          name: `Page ${selectedTab.pages.length + 1}`,
-          id: newPageId,
-          tabId: selectedTab.id,
-          elements: [],
-        };
-        const updatedTab = {
-          ...selectedTab,
-          pages: [...selectedTab.pages, newPage],
-        };
-        const updatedTabs = tabs.map((t) =>
-          t.id === selectedTab.id ? updatedTab : t,
-        );
-        set({
-          tabs: updatedTabs,
-          selectedTab: updatedTab,
-          selectedPage: newPage,
-        });
-      },
-      removePage: (pageId) => {
-        const { tabs, selectedTab } = get();
-        if (selectedTab.pages.length <= 1) return;
-        const remainingPages = selectedTab.pages.filter((p) => p.id !== pageId);
-        const updatedTab = { ...selectedTab, pages: remainingPages };
-        const updatedTabs = tabs.map((t) =>
-          t.id === selectedTab.id ? updatedTab : t,
-        );
-        set({
-          tabs: updatedTabs,
-          selectedTab: updatedTab,
-          selectedPage: remainingPages[0],
-          selectedElmId: null,
-        });
-      },
-      selectElement: (id) => set({ selectedElmId: id }),
-      addElement: (type, target) => {
-        const { tabs, selectedPage } = get();
-        const currentElements = selectedPage.elements ?? [];
-        const newElement = createElement(type);
-        const insertIndex =
-          target.index !== undefined ? target.index : currentElements.length;
-        const newElements = insertElement(
-          currentElements,
-          target.parentId,
-          insertIndex,
-          newElement,
-        );
-        const { updatedTabs, updatedPage } = updatePageElements(
-          tabs,
-          selectedPage,
-          newElements,
-        );
-        set({
-          tabs: updatedTabs,
-          selectedPage: updatedPage,
-          selectedElmId: newElement.id,
-        });
-      },
-      moveElement: (activeId, target) => {
-        if (activeId === target.parentId) return;
-        const { tabs, selectedPage } = get();
-        const currentElements = selectedPage.elements ?? [];
+      actions: {
+        selectTab: (tabOrId) => {
+          const tabId = typeof tabOrId === "string" ? tabOrId : tabOrId.id;
+          const { tabs } = get().context;
+          const targetTab = tabs.find((t) => t.id === tabId) ?? tabs[0];
+          set((state) => ({
+            context: {
+              ...state.context,
+              selectedTabId: targetTab.id,
+              selectedPageId: targetTab.pages[0]?.id ?? "",
+              selectedElmId: null,
+            },
+          }));
+        },
 
-        if (target.parentId !== null) {
-          const activeEl = findElement(currentElements, activeId);
-          if (activeEl && isSameOrDescendant(activeEl, target.parentId)) {
-            return;
+        addTab: () => {
+          const { tabs, id } = get().context;
+          const newTabId = generateId();
+          const newPageId = generateId();
+          const newTab: ProjectTab = {
+            id: newTabId,
+            name: `Template-${tabs.length + 1}`,
+            projectId: id,
+            pages: [
+              { name: "Page", id: newPageId, tabId: newTabId, elements: [] },
+            ],
+          };
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: [...tabs, newTab],
+              selectedTabId: newTabId,
+              selectedPageId: newPageId,
+              selectedElmId: null,
+            },
+          }));
+        },
+
+        removeTab: (tabId) => {
+          const { tabs, selectedTabId } = get().context;
+          if (tabs.length <= 1) return;
+          const remainingTabs = tabs.filter((t) => t.id !== tabId);
+          const nextSelected =
+            selectedTabId === tabId
+              ? remainingTabs[0]
+              : tabs.find((t) => t.id === selectedTabId) ?? remainingTabs[0];
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: remainingTabs,
+              selectedTabId: nextSelected.id,
+              selectedPageId: nextSelected.pages[0]?.id ?? "",
+              selectedElmId: null,
+            },
+          }));
+        },
+
+        selectPage: (pageOrId) => {
+          const pageId = typeof pageOrId === "string" ? pageOrId : pageOrId.id;
+          set((state) => ({
+            context: {
+              ...state.context,
+              selectedPageId: pageId,
+              selectedElmId: null,
+            },
+          }));
+        },
+
+        addPage: () => {
+          const { tabs, selectedTabId } = get().context;
+          const newPageId = generateId();
+          const updatedTabs = tabs.map((tab) => {
+            if (tab.id !== selectedTabId) return tab;
+            const newPage: TabPage = {
+              name: `Page ${tab.pages.length + 1}`,
+              id: newPageId,
+              tabId: tab.id,
+              elements: [],
+            };
+            return {
+              ...tab,
+              pages: [...tab.pages, newPage],
+            };
+          });
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: updatedTabs,
+              selectedPageId: newPageId,
+            },
+          }));
+        },
+
+        removePage: (pageId) => {
+          const { tabs, selectedTabId, selectedPageId } = get().context;
+          const currentTab = tabs.find((t) => t.id === selectedTabId);
+          if (!currentTab || currentTab.pages.length <= 1) return;
+          const remainingPages = currentTab.pages.filter((p) => p.id !== pageId);
+          const nextSelectedPageId =
+            selectedPageId === pageId ? remainingPages[0].id : selectedPageId;
+          const updatedTabs = tabs.map((t) =>
+            t.id === selectedTabId ? { ...t, pages: remainingPages } : t,
+          );
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: updatedTabs,
+              selectedPageId: nextSelectedPageId,
+              selectedElmId: null,
+            },
+          }));
+        },
+
+        selectElement: (id) =>
+          set((state) => ({
+            context: {
+              ...state.context,
+              selectedElmId: id,
+            },
+          })),
+
+        addElement: (type, target) => {
+          const { tabs, selectedTabId, selectedPageId } = get().context;
+          const activeElements = selectActiveElements(get());
+          const newElement = createElement(type);
+          const insertIndex =
+            target.index !== undefined ? target.index : activeElements.length;
+          const updatedTabs = updateActivePageElements(
+            tabs,
+            selectedTabId,
+            selectedPageId,
+            (elements) =>
+              insertElement(elements, target.parentId, insertIndex, newElement),
+          );
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: updatedTabs,
+              selectedElmId: newElement.id,
+            },
+          }));
+        },
+
+        moveElement: (activeId, target) => {
+          if (activeId === target.parentId) return;
+          const { tabs, selectedTabId, selectedPageId } = get().context;
+          const activeElements = selectActiveElements(get());
+
+          if (target.parentId !== null) {
+            const activeEl = findElement(activeElements, activeId);
+            if (activeEl && isSameOrDescendant(activeEl, target.parentId)) {
+              return;
+            }
           }
-        }
 
-        const { tree: treeWithoutActive, removed } = removeElement(
-          currentElements,
-          activeId,
-        );
-        if (!removed) return;
-        const insertIndex = target.index !== undefined ? target.index : 0;
-        const newElements = insertElement(
-          treeWithoutActive,
-          target.parentId,
-          insertIndex,
-          removed,
-        );
-        const { updatedTabs, updatedPage } = updatePageElements(
-          tabs,
-          selectedPage,
-          newElements,
-        );
-        set({
-          tabs: updatedTabs,
-          selectedPage: updatedPage,
-        });
-      },
-      updateElementProps: (id, patch) => {
-        const { tabs, selectedPage } = get();
-        const currentElements = selectedPage.elements ?? [];
-        const newElements = updateElement(currentElements, id, patch);
-        const { updatedTabs, updatedPage } = updatePageElements(
-          tabs,
-          selectedPage,
-          newElements,
-        );
-        set({
-          tabs: updatedTabs,
-          selectedPage: updatedPage,
-        });
-      },
-      removeElementById: (id) => {
-        const { tabs, selectedPage, selectedElmId } = get();
-        const currentElements = selectedPage.elements ?? [];
-        const { tree: newElements } = removeElement(currentElements, id);
-        const { updatedTabs, updatedPage } = updatePageElements(
-          tabs,
-          selectedPage,
-          newElements,
-        );
-        set({
-          tabs: updatedTabs,
-          selectedPage: updatedPage,
-          selectedElmId: selectedElmId === id ? null : selectedElmId,
-        });
-      },
-      duplicateElementById: (id) => {
-        const { tabs, selectedPage } = get();
-        const currentElements = selectedPage.elements ?? [];
-        const { tree: newElements, newId } = duplicateElement(
-          currentElements,
-          id,
-        );
-        const { updatedTabs, updatedPage } = updatePageElements(
-          tabs,
-          selectedPage,
-          newElements,
-        );
-        set({
-          tabs: updatedTabs,
-          selectedPage: updatedPage,
-          selectedElmId: newId,
-        });
+          const sourceInfo = findContainingList(activeElements, activeId);
+          const oldParentId = sourceInfo?.parentId ?? null;
+          const oldIndex = sourceInfo?.index ?? -1;
+
+          const { tree: treeWithoutActive, removed } = removeElement(
+            activeElements,
+            activeId,
+          );
+          if (!removed) return;
+          const targetList =
+            getListForParent(treeWithoutActive, target.parentId) ?? [];
+          let insertIndex =
+            target.index !== undefined ? target.index : targetList.length;
+          if (
+            oldParentId === target.parentId &&
+            oldIndex !== -1 &&
+            oldIndex < insertIndex
+          ) {
+            insertIndex = insertIndex - 1;
+          }
+          const updatedTabs = updateActivePageElements(
+            tabs,
+            selectedTabId,
+            selectedPageId,
+            () =>
+              insertElement(
+                treeWithoutActive,
+                target.parentId,
+                insertIndex,
+                removed,
+              ),
+          );
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: updatedTabs,
+            },
+          }));
+        },
+
+        moveElementDirection: (id, direction) => {
+          const activeElements = selectActiveElements(get());
+          const target = getMovementTarget(activeElements, id, direction);
+          if (!target) return;
+          get().actions.moveElement(id, target);
+        },
+
+        updateElementProps: (id, patch) => {
+          const { tabs, selectedTabId, selectedPageId } = get().context;
+          const updatedTabs = updateActivePageElements(
+            tabs,
+            selectedTabId,
+            selectedPageId,
+            (elements) => updateElement(elements, id, patch),
+          );
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: updatedTabs,
+            },
+          }));
+        },
+
+        removeElementById: (id) => {
+          const { tabs, selectedTabId, selectedPageId, selectedElmId } =
+            get().context;
+          const updatedTabs = updateActivePageElements(
+            tabs,
+            selectedTabId,
+            selectedPageId,
+            (elements) => removeElement(elements, id).tree,
+          );
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: updatedTabs,
+              selectedElmId: selectedElmId === id ? null : selectedElmId,
+            },
+          }));
+        },
+
+        duplicateElementById: (id) => {
+          const { tabs, selectedTabId, selectedPageId } = get().context;
+          let duplicatedId: string | null = null;
+          const updatedTabs = updateActivePageElements(
+            tabs,
+            selectedTabId,
+            selectedPageId,
+            (elements) => {
+              const { tree, newId } = duplicateElement(elements, id);
+              duplicatedId = newId;
+              return tree;
+            },
+          );
+          set((state) => ({
+            context: {
+              ...state.context,
+              tabs: updatedTabs,
+              selectedElmId: duplicatedId,
+            },
+          }));
+        },
+
+        saveStore: () => {
+          if (typeof window === "undefined") return;
+          try {
+            const { context } = get();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(context));
+          } catch (error) {
+            console.error("Failed to save store to localStorage:", error);
+          }
+        },
+
+        loadStore: () => {
+          if (typeof window === "undefined") return;
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            const loadedContext =
+              parsed?.state?.context ?? parsed?.context ?? parsed;
+            if (
+              loadedContext &&
+              Array.isArray(loadedContext.tabs) &&
+              loadedContext.tabs.length > 0
+            ) {
+              const firstTab = loadedContext.tabs[0];
+              const selectedTabId =
+                loadedContext.selectedTabId ??
+                loadedContext.selectedTab?.id ??
+                firstTab.id;
+              const targetTab =
+                loadedContext.tabs.find(
+                  (t: ProjectTab) => t.id === selectedTabId,
+                ) ?? firstTab;
+              const selectedPageId =
+                loadedContext.selectedPageId ??
+                loadedContext.selectedPage?.id ??
+                targetTab.pages[0]?.id ??
+                "";
+
+              set((state) => ({
+                context: {
+                  ...state.context,
+                  id: loadedContext.id ?? state.context.id,
+                  name: loadedContext.name ?? state.context.name,
+                  tabs: loadedContext.tabs,
+                  selectedTabId,
+                  selectedPageId,
+                  selectedElmId: null,
+                },
+              }));
+            }
+          } catch (error) {
+            console.error("Failed to load store from localStorage:", error);
+          }
+        },
+
+        loadTemplate: (template) => {
+          if (!template || !template.tabs || template.tabs.length === 0) return;
+
+          const firstTab = template.tabs[0];
+          const selectedTabId = template.selectedTabId ?? firstTab.id;
+          const targetTab =
+            template.tabs.find((t) => t.id === selectedTabId) ?? firstTab;
+          const selectedPageId =
+            template.selectedPageId ?? targetTab.pages[0]?.id ?? "";
+
+          set((state) => ({
+            context: {
+              ...state.context,
+              id: template.id ?? state.context.id,
+              name: template.name ?? state.context.name,
+              tabs: template.tabs,
+              selectedTabId,
+              selectedPageId,
+              selectedElmId: null,
+            },
+          }));
+
+          useProjectStore.temporal.getState().clear();
+        },
       },
     }),
-    { name: "project-store" },
+    {
+      limit: 50,
+      partialize: (state) => ({
+        context: {
+          id: state.context.id,
+          name: state.context.name,
+          tabs: state.context.tabs,
+        },
+      }),
+    },
   ),
 );
 
-function updatePageElements(
+function updateActivePageElements(
   tabs: ProjectTab[],
-  selectedPage: TabPage,
-  newElements: PageElement[],
-) {
-  const updatedPage = { ...selectedPage, elements: newElements };
-  const updatedTabs = tabs.map((tab) => {
-    if (tab.id !== selectedPage.tabId) return tab;
+  selectedTabId: string,
+  selectedPageId: string,
+  updater: (elements: PageElement[]) => PageElement[],
+): ProjectTab[] {
+  return tabs.map((tab) => {
+    if (tab.id !== selectedTabId) return tab;
     return {
       ...tab,
-      pages: tab.pages.map((p) => (p.id === selectedPage.id ? updatedPage : p)),
+      pages: tab.pages.map((p) => {
+        if (p.id !== selectedPageId) return p;
+        return {
+          ...p,
+          elements: updater(p.elements ?? []),
+        };
+      }),
     };
   });
-  return { updatedTabs, updatedPage };
 }

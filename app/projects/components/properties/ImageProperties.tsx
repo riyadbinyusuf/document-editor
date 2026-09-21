@@ -13,7 +13,7 @@ import { useProjectStore } from "@/store/projectsStore";
 
 export default function ImageProperties({ element }: { element: PageElement }) {
   const props = element.props as unknown as ImageProps;
-  const updateElementProps = useProjectStore((s) => s.updateElementProps);
+  const updateElementProps = useProjectStore((s) => s.actions.updateElementProps);
   const set = (patch: Partial<ImageProps>) =>
     updateElementProps(element.id, patch);
 

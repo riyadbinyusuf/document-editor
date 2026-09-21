@@ -142,3 +142,24 @@ export interface DropTarget {
   parentId: string | null;
   index?: number;
 }
+
+export type ProjectTemplate = {
+  id: string;
+  name: string;
+  tabs: ProjectTab[];
+  selectedTabId?: string;
+  selectedPageId?: string;
+  selectedElmId?: string | null;
+  created_at: string | number;
+  templateId: string;
+  templateName: string;
+};
+
+export type ProjectStoreContext = {
+  id: string;
+  name: string;
+  tabs: ProjectTab[];
+  selectedTabId: string;
+  selectedPageId: string;
+  selectedElmId: string | null;
+};

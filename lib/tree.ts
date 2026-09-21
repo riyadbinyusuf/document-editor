@@ -102,10 +102,12 @@ export function insertElement(
   index: number | undefined | null,
   element: PageElement,
 ): PageElement[] {
+  const copiedElement = { ...element };
+
   if (parentId === null) {
     const next = [...tree];
     const targetIdx = index != null && !Number.isNaN(index) ? index : next.length;
-    next.splice(clamp(targetIdx, 0, next.length), 0, element);
+    next.splice(clamp(targetIdx, 0, next.length), 0, copiedElement);
     return next;
   }
   function recurse(list: PageElement[]): PageElement[] {
@@ -113,7 +115,7 @@ export function insertElement(
       if (el.id === parentId) {
         const children = el.children ? [...el.children] : [];
         const targetIdx = index != null && !Number.isNaN(index) ? index : children.length;
-        children.splice(clamp(targetIdx, 0, children.length), 0, element);
+        children.splice(clamp(targetIdx, 0, children.length), 0, copiedElement);
         return { ...el, children };
       }
       if (el.children) {
@@ -131,15 +133,23 @@ export function updateElement(
   props: Record<string, unknown>,
 ): PageElement[] {
   function recurse(list: PageElement[]): PageElement[] {
-    return list.map((el) => {
+    let hasChanged = false;
+    const nextList = list.map((el) => {
       if (el.id === id) {
+        hasChanged = true;
         return { ...el, props: { ...el.props, ...props } };
       }
       if (el.children) {
-        return { ...el, children: recurse(el.children) };
+        const nextChildren = recurse(el.children);
+        if (nextChildren !== el.children) {
+          hasChanged = true;
+          return { ...el, children: nextChildren };
+        }
       }
       return el;
     });
+
+    return hasChanged ? nextList : list;
   }
   return recurse(tree);
 }
@@ -182,6 +192,100 @@ export function isSameOrDescendant(
   if (root.id === targetId) return true;
   if (!root.children) return false;
   return root.children.some((c) => isSameOrDescendant(c, targetId));
+}
+
+export type MoveDirection =
+  | "up"
+  | "down"
+  | "left"
+  | "right"
+  | "parent"
+  | "child";
+
+export function getMovementTarget(
+  tree: PageElement[],
+  id: string,
+  direction: MoveDirection,
+): { parentId: string | null; index?: number } | null {
+  const source = findContainingList(tree, id);
+  if (!source) return null;
+
+  const { list, index, parentId } = source;
+  const parentContainer = parentId ? findElement(tree, parentId) : null;
+  const layoutMode = parentContainer?.props?.layoutMode as string | undefined;
+  const isGrid = layoutMode === "grid";
+  const isRow = !isGrid && parentContainer?.props?.direction === "row";
+
+  const getParentMoveTarget = () => {
+    if (parentId === null) return null;
+    const parentInfo = findContainingList(tree, parentId);
+    if (!parentInfo) return null;
+    return { parentId: parentInfo.parentId, index: parentInfo.index + 1 };
+  };
+
+  const getChildMoveTarget = () => {
+    const prevSibling = list[index - 1];
+    if (prevSibling && prevSibling.type === "container") {
+      return { parentId: prevSibling.id, index: undefined };
+    }
+    const nextSibling = list[index + 1];
+    if (nextSibling && nextSibling.type === "container") {
+      return { parentId: nextSibling.id, index: undefined };
+    }
+    return null;
+  };
+
+  if (direction === "parent") return getParentMoveTarget();
+  if (direction === "child") return getChildMoveTarget();
+
+  if (isGrid) {
+    const cols = Number(parentContainer?.props?.gridColumns) || 3;
+    if (direction === "up") {
+      return index >= cols ? { parentId, index: index - cols } : null;
+    }
+    if (direction === "down") {
+      return index + cols < list.length
+        ? { parentId, index: index + cols + 1 }
+        : null;
+    }
+    if (direction === "left") {
+      return index > 0 ? { parentId, index: index - 1 } : null;
+    }
+    if (direction === "right") {
+      return index < list.length - 1 ? { parentId, index: index + 2 } : null;
+    }
+  }
+
+  if (isRow) {
+    if (direction === "left") {
+      return index > 0 ? { parentId, index: index - 1 } : null;
+    }
+    if (direction === "right") {
+      return index < list.length - 1 ? { parentId, index: index + 2 } : null;
+    }
+    if (direction === "up") return getParentMoveTarget();
+    if (direction === "down") return getChildMoveTarget();
+  }
+
+
+  if (direction === "up") {
+    return index > 0 ? { parentId, index: index - 1 } : null;
+  }
+  if (direction === "down") {
+    return index < list.length - 1 ? { parentId, index: index + 2 } : null;
+  }
+  if (direction === "left") return getParentMoveTarget();
+  if (direction === "right") return getChildMoveTarget();
+
+  return null;
+}
+
+export function canMoveDirection(
+  tree: PageElement[],
+  id: string,
+  direction: MoveDirection,
+): boolean {
+  return getMovementTarget(tree, id, direction) !== null;
 }
 
 function clamp(n: number, min: number, max: number): number {
